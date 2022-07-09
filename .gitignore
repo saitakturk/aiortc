@@ -1,6 +1,7 @@
 *.egg-info
 *.pyc
 *.so
+*.mp4
 .coverage
 .eggs
 .idea
