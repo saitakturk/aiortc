@@ -23,9 +23,9 @@ function takePicture(){
     const canvas = document.createElement("canvas");
 
     const video = document.getElementById("video");
-    canvas.width = video.width;
-    canvas.height = video.height;
-    canvas.getContext("2d").drawImage(video, 0, 0, video.width, video.height); 
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video, 0, 0, video.videoWidth, video.videoHeight); 
     let data = canvas.toDataURL('image/jpeg');
 
     console.log(data)
