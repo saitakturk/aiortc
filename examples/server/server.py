@@ -5,7 +5,7 @@ import logging
 import os
 import ssl
 import uuid
-
+from datetime import datetime
 import cv2
 from aiohttp import web
 from av import VideoFrame
@@ -58,7 +58,9 @@ class VideoTransformTrack(MediaStreamTrack):
 
             # combine color and edges
             img = cv2.bitwise_and(img_color, img_edges)
-
+            font = cv2.FONT_HERSHEY_PLAIN
+            cv2.putText(img, str(datetime.now()), (20, 40),
+                font, 2, (0, 255, 0), 2, cv2.LINE_AA)
             # rebuild a VideoFrame, preserving timing information
             new_frame = VideoFrame.from_ndarray(img, format="bgr24")
             new_frame.pts = frame.pts
@@ -68,7 +70,9 @@ class VideoTransformTrack(MediaStreamTrack):
             # perform edge detection
             img = frame.to_ndarray(format="bgr24")
             img = cv2.cvtColor(cv2.Canny(img, 100, 200), cv2.COLOR_GRAY2BGR)
-
+            font = cv2.FONT_HERSHEY_PLAIN
+            cv2.putText(img, str(datetime.now()), (20, 40),
+                font, 2, (0, 255, 0), 2, cv2.LINE_AA)
             # rebuild a VideoFrame, preserving timing information
             new_frame = VideoFrame.from_ndarray(img, format="bgr24")
             new_frame.pts = frame.pts
@@ -80,7 +84,9 @@ class VideoTransformTrack(MediaStreamTrack):
             rows, cols, _ = img.shape
             M = cv2.getRotationMatrix2D((cols / 2, rows / 2), frame.time * 45, 1)
             img = cv2.warpAffine(img, M, (cols, rows))
-
+            font = cv2.FONT_HERSHEY_PLAIN
+            cv2.putText(img, str(datetime.now()), (20, 40),
+                font, 2, (0, 255, 0), 2, cv2.LINE_AA)
             # rebuild a VideoFrame, preserving timing information
             new_frame = VideoFrame.from_ndarray(img, format="bgr24")
             new_frame.pts = frame.pts

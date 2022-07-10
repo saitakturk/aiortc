@@ -27,8 +27,6 @@ function takePicture(){
     canvas.height = video.videoHeight;
     canvas.getContext("2d").drawImage(video, 0, 0, video.videoWidth, video.videoHeight); 
     let data = canvas.toDataURL('image/jpeg');
-
-    console.log(data)
     var imageMessage = new ROSLIB.Message({
         format : "jpeg",
         data :  data.replace("data:image/jpeg;base64,", "")
