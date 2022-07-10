@@ -6,9 +6,39 @@ var dataChannelLog = document.getElementById('data-channel'),
 
 // peer connection
 var pc = null;
+var imageCapture = null;
+let cameraTimer;
 
 // data channel
 var dc = null, dcInterval = null;
+var ros = new ROSLIB.Ros();
+var imageTopic = new ROSLIB.Topic({
+    ros : ros,
+    name : '/camera/image/compressed',
+    messageType : 'sensor_msgs/CompressedImage'
+  });
+
+function takePicture(){
+   
+    const canvas = document.createElement("canvas");
+
+    const video = document.getElementById("video");
+    canvas.width = video.width;
+    canvas.height = video.height;
+    canvas.getContext("2d").drawImage(video, 0, 0, video.width, video.height); 
+    let data = canvas.toDataURL('image/jpeg');
+
+    console.log(data)
+    var imageMessage = new ROSLIB.Message({
+        format : "jpeg",
+        data :  data.replace("data:image/jpeg;base64,", "")
+    });
+
+    imageTopic.publish(imageMessage);
+ }
+
+
+
 
 function createPeerConnection() {
     var config = {
@@ -39,10 +69,26 @@ function createPeerConnection() {
 
     // connect audio / video
     pc.addEventListener('track', function(evt) {
+        
+
         if (evt.track.kind == 'video')
+        {
             document.getElementById('video').srcObject = evt.streams[0];
+        }
         else
             document.getElementById('audio').srcObject = evt.streams[0];
+        
+
+        if(cameraTimer == null) {
+            ros.connect("ws://" + window.location.hostname + ":9090");
+           
+            cameraTimer = setInterval(function(){
+                  takePicture();
+             }, 40);       // publish an image 4 times per second
+
+    
+         }
+        
     });
 
     return pc;
@@ -207,6 +253,14 @@ function stop() {
     setTimeout(function() {
         pc.close();
     }, 500);
+
+    ros.close();
+     
+    clearInterval(cameraTimer);
+             
+    cameraTimer = null;
+      
+    
 }
 
 function sdpFilterCodec(kind, codec, realSdp) {

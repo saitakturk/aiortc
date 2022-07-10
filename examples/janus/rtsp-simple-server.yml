@@ -1,0 +1,3 @@
+protocols: [udp]
+paths:
+  live-stream:

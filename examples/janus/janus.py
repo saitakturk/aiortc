@@ -269,6 +269,7 @@ if __name__ == "__main__":
         ),
         action="store_true",
     )
+    parser.add_argument("--format", "-f", default="rtsp")
     parser.add_argument("--verbose", "-v", action="count")
     args = parser.parse_args()
 
@@ -287,8 +288,9 @@ if __name__ == "__main__":
         player = None
 
     # create media sink
+    options['rtsp_transport'] = 'udp'
     if args.record_to:
-        recorder = MediaRecorder(args.record_to)
+        recorder = MediaRecorder(args.record_to, format=args.format, options=options)
     else:
         recorder = None
 
