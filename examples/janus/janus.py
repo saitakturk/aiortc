@@ -36,9 +36,10 @@ class VideoROSBridgeTrack(MediaStreamTrack):
         img = frame.to_ndarray(format="bgr24")
         rows, cols, _ = img.shape
 
-        img_base64_str = base64.b64encode(image.tobytes()).decode('ascii')
-        publisher.publish(dict(format = 'jpeg', data = img_base64_str))
+        img_base64_str = base64.b64encode(img.tobytes()).decode('ascii')
+        publish_image = publisher.publish(dict(format = 'jpeg', data = img_base64_str))
 
+        client.on_ready(publish_image)
         # rebuild a VideoFrame, preserving timing information
         new_frame = VideoFrame.from_ndarray(img, format="bgr24")
         new_frame.pts = frame.pts
