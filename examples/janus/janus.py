@@ -5,11 +5,13 @@ import random
 import string
 import time
 import aiohttp
+import base64
+import roslibpy
 
 import cv2
 from aiohttp import web
 from av import VideoFrame
-from datetime import datetime 
+from datetime import datetime
 
 from aiortc import MediaStreamTrack, RTCPeerConnection, RTCSessionDescription, VideoStreamTrack
 from aiortc.contrib.media import MediaBlackhole, MediaPlayer, MediaRecorder, MediaRelay
@@ -17,6 +19,31 @@ from aiortc.contrib.media import MediaBlackhole, MediaPlayer, MediaRecorder, Med
 pcs = set()
 relay = MediaRelay()
 
+class VideoROSBridgeTrack(MediaStreamTrack):
+
+
+    kind = "video"
+
+    def __init__(self, track):
+        super().__init__()  # don't forget this!
+        self.track = track
+        self.color = color
+
+    async def recv(self):
+        frame = await self.track.recv()
+
+
+        img = frame.to_ndarray(format="bgr24")
+        rows, cols, _ = img.shape
+
+        img_base64_str = base64.b64encode(image.tobytes()).decode('ascii')
+        publisher.publish(dict(format = 'jpeg', data = img_base64_str))
+
+        # rebuild a VideoFrame, preserving timing information
+        new_frame = VideoFrame.from_ndarray(img, format="bgr24")
+        new_frame.pts = frame.pts
+        new_frame.time_base = frame.time_base
+        return new_frame
 
 class VideoTimestampTrack(MediaStreamTrack):
     """
@@ -37,7 +64,7 @@ class VideoTimestampTrack(MediaStreamTrack):
 
         img = frame.to_ndarray(format="bgr24")
         rows, cols, _ = img.shape
-        
+
         font = cv2.FONT_HERSHEY_PLAIN
         cv2.putText(img, str(datetime.now()), self.position,
             font, 2, self.color, 2, cv2.LINE_AA)
@@ -148,7 +175,7 @@ async def publish(plugin, player):
     if player and player.video:
         pc.addTrack(VideoTimestampTrack(
                     player.video, position = (20, 700), color = (0, 255, 0)
-                )) 
+                ))
     else:
         pc.addTrack(VideoStreamTrack())
 
@@ -183,9 +210,7 @@ async def subscribe(session, room, feed, recorder):
     async def on_track(track):
         print("Track %s received" % track.kind)
         if track.kind == "video":
-            recorder.addTrack( VideoTimestampTrack(
-                    track, position = (20, 40), color = (0, 0, 255)
-                ))
+            recorder.addTrack(VideoROSBridgeTrack(track))
         if track.kind == "audio":
             recorder.addTrack(track)
 
@@ -278,6 +303,11 @@ if __name__ == "__main__":
 
     # create signaling and peer connection
     session = JanusSession(args.url)
+
+    client = roslibpy.Ros(host='127.0.0.1', port=9090)
+
+    publisher = roslibpy.Topic(client, '/camera/image/compressed', 'sensor_msgs/CompressedImage')
+    publisher.advertise()
 
     # create media source
 
