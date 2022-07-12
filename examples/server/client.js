@@ -18,14 +18,13 @@ var imageTopic = new ROSLIB.Topic({
     messageType : 'sensor_msgs/CompressedImage'
   });
 
-function takePicture(){
+function sendFrame(bitmap){
    
     const canvas = document.createElement("canvas");
 
-    const video = document.getElementById("video");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext("2d").drawImage(video, 0, 0, video.videoWidth, video.videoHeight); 
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    canvas.getContext("2d").drawImage(bitmap, 0, 0, bitmap.width, bitmap.height);
     let data = canvas.toDataURL('image/jpeg');
     var imageMessage = new ROSLIB.Message({
         format : "jpeg",
@@ -72,16 +71,22 @@ function createPeerConnection() {
         if (evt.track.kind == 'video')
         {
             document.getElementById('video').srcObject = evt.streams[0];
+            imageCapture = new ImageCapture(evt.track);
         }
         else
             document.getElementById('audio').srcObject = evt.streams[0];
         
 
-        if(cameraTimer == null) {
+        if(cameraTimer == null && imageCapture) {
             ros.connect("ws://" + window.location.hostname + ":9090");
-           
             cameraTimer = setInterval(function(){
-                  takePicture();
+                imageCapture.grabFrame()
+                .then(imageBitmap => {
+                   sendFrame(imageBitmap);
+                })
+                .catch(function(error) {
+                    console.log('grabFrame() error: ', error);
+                  });
              }, 40);       // publish an image 4 times per second
 
     
