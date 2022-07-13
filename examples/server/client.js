@@ -11,21 +11,6 @@ var imageCapture = null;
 // data channel
 var dc = null, dcInterval = null;
 
-function sendFrame(bitmap){
-   
-    const canvas = document.createElement("canvas");
-
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
-    canvas.getContext("2d").drawImage(bitmap, 0, 0, bitmap.width, bitmap.height);
-    let data = canvas.toDataURL('image/jpeg');
-    var imageMessage = new ROSLIB.Message({
-        format : "jpeg",
-        data :  data.replace("data:image/jpeg;base64,", "")
-    });
-
-    imageTopic.publish(imageMessage);
- }
 
 function reportStats(pc) {
     pc.getStats().then(stats => {
