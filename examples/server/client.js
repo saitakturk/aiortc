@@ -7,16 +7,9 @@ var dataChannelLog = document.getElementById('data-channel'),
 // peer connection
 var pc = null;
 var imageCapture = null;
-let cameraTimer;
 
 // data channel
 var dc = null, dcInterval = null;
-var ros = new ROSLIB.Ros();
-var imageTopic = new ROSLIB.Topic({
-    ros : ros,
-    name : '/camera/image/compressed',
-    messageType : 'sensor_msgs/CompressedImage'
-  });
 
 function sendFrame(bitmap){
    
@@ -34,8 +27,27 @@ function sendFrame(bitmap){
     imageTopic.publish(imageMessage);
  }
 
+function reportStats(pc) {
+    pc.getStats().then(stats => {
+        let statsOutput = "";
 
+        stats.forEach(report => {
+            statsOutput += `<h2>Report: ${report.type}</h2>\n<strong>ID:</strong> ${report.id}<br>\n` +
+                `<strong>Timestamp:</strong> ${report.timestamp}<br>\n`;
 
+            // Now the statistics for this report; we intentionally drop the ones we
+            // sorted to the top above
+
+            Object.keys(report).forEach(statName => {
+                if (statName !== "id" && statName !== "timestamp" && statName !== "type") {
+                    statsOutput += `<strong>${statName}:</strong> ${report[statName]}<br>\n`;
+                }
+            });
+        });
+
+        document.querySelector("#stats").innerHTML = statsOutput;
+    });
+}
 
 function createPeerConnection() {
     var config = {
@@ -75,22 +87,6 @@ function createPeerConnection() {
         }
         else
             document.getElementById('audio').srcObject = evt.streams[0];
-        
-
-        if(cameraTimer == null && imageCapture) {
-            ros.connect("ws://" + window.location.hostname + ":9090");
-            cameraTimer = setInterval(function(){
-                imageCapture.grabFrame()
-                .then(imageBitmap => {
-                   sendFrame(imageBitmap);
-                })
-                .catch(function(error) {
-                    console.log('grabFrame() error: ', error);
-                  });
-             }, 40);       // publish an image 4 times per second
-
-    
-         }
         
     });
 
@@ -227,6 +223,10 @@ function start() {
         negotiate();
     }
 
+    window.setInterval(function () {
+        reportStats(pc);
+    }, 1000);
+
     document.getElementById('stop').style.display = 'inline-block';
 }
 
@@ -259,10 +259,6 @@ function stop() {
 
     ros.close();
      
-    clearInterval(cameraTimer);
-             
-    cameraTimer = null;
-      
     
 }
 
