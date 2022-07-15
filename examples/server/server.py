@@ -81,7 +81,7 @@ class MediaRosSend:
                 
                 img_base64_str = base64.b64encode(membuf.getvalue()).decode('ascii')
                 self.publisher.publish(dict(format = 'jpeg', data = img_base64_str))
-                await asyncio.sleep(0.04)
+                #await asyncio.sleep(0.01)
             except MediaStreamError:
                 return
 
@@ -209,12 +209,6 @@ async def offer(request):
         log_info("Track %s received", track.kind)
 
         if track.kind == "video":
-            pc.addTrack(
-                VideoTransformTrack(
-                    relay.subscribe(track), transform=params["video_transform"]
-                )
-            )
-
             recorder.addTrack(relay.subscribe(track, buffered=False))
 
         @track.on("ended")

@@ -10,13 +10,75 @@ import cv2
 from aiohttp import web
 from av import VideoFrame
 from datetime import datetime 
+import roslibpy
+import base64
+from io import BytesIO
 
 from aiortc import MediaStreamTrack, RTCPeerConnection, RTCSessionDescription, VideoStreamTrack
-from aiortc.contrib.media import MediaBlackhole, MediaPlayer, MediaRecorder, MediaRelay
+from aiortc.contrib.media import MediaPlayer, MediaRecorder, MediaRelay, MediaStreamError
 
 pcs = set()
 relay = MediaRelay()
+ros = roslibpy.Ros(host='localhost', port=9090)
 
+class MediaRosSend:
+    """
+    Consumes video and sends to ros bridge with topic
+    """
+
+    def __init__(self, client, publisher):
+        self.__tracks = {}
+        self.client = client
+        self.publisher = publisher
+
+    def addTrack(self, track):
+        """
+        Add a track whose media should be discarded.
+
+        :param track: A :class:`aiortc.MediaStreamTrack`.
+        """
+        if track not in self.__tracks:
+            self.__tracks[track] = None
+
+    async def start(self):
+        """
+        Start sending media.
+        """
+
+        if self.client.is_connected == False:
+            self.client.connect()
+
+        for track, task in self.__tracks.items():
+            if task is None:
+                self.__tracks[track] = asyncio.ensure_future(self.__run_track(track))
+
+    async def stop(self):
+        """
+        Stop sending media.
+        """
+
+        for task in self.__tracks.values():
+            if task is not None:
+                task.cancel()
+        self.__tracks = {}
+
+        self.client.close()
+
+
+    async def __run_track(self, track: MediaStreamTrack):
+        while True:
+            try:
+                frame = await track.recv()
+
+                img = frame.to_image()
+                membuf = BytesIO()
+                img.save(membuf, format="jpeg") 
+                
+                img_base64_str = base64.b64encode(membuf.getvalue()).decode('ascii')
+                self.publisher.publish(dict(format = 'jpeg', data = img_base64_str))
+                #await asyncio.sleep(0.01)
+            except MediaStreamError:
+                return
 
 class VideoTimestampTrack(MediaStreamTrack):
     """
@@ -147,7 +209,7 @@ async def publish(plugin, player):
 
     if player and player.video:
         pc.addTrack(VideoTimestampTrack(
-                    player.video, position = (20, 700), color = (0, 255, 0)
+                    player.video, position = (20, 80), color = (0, 255, 0)
                 )) 
     else:
         pc.addTrack(VideoStreamTrack())
@@ -287,13 +349,17 @@ if __name__ == "__main__":
     else:
         player = None
 
-    # create media sink
-    options['rtsp_transport'] = 'udp'
-    if args.record_to:
-        recorder = MediaRecorder(args.record_to, format=args.format, options=options)
-    else:
-        recorder = None
+    ros.run()
+    
+    imageTopic = roslibpy.Topic(
+        ros, 
+        name="/camera/image/compressed", 
+        message_type="sensor_msgs/CompressedImage"
+    )
 
+    imageTopic.advertise()
+    recorder = MediaRosSend(client=ros, publisher=imageTopic)
+    
     loop = asyncio.get_event_loop()
     try:
         loop.run_until_complete(
@@ -309,3 +375,4 @@ if __name__ == "__main__":
         # close peer connections
         coros = [pc.close() for pc in pcs]
         loop.run_until_complete(asyncio.gather(*coros))
+        ros.terminate()
