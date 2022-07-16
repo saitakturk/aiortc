@@ -6,6 +6,8 @@ import string
 import time
 import aiohttp
 
+import pyrealsense2 as rs
+import numpy as np
 import cv2
 from aiohttp import web
 from av import VideoFrame
@@ -13,6 +15,7 @@ from datetime import datetime
 import roslibpy
 import base64
 from io import BytesIO
+from av import VideoFrame
 
 from aiortc import MediaStreamTrack, RTCPeerConnection, RTCSessionDescription, VideoStreamTrack
 from aiortc.contrib.media import MediaPlayer, MediaRecorder, MediaRelay, MediaStreamError
@@ -20,6 +23,50 @@ from aiortc.contrib.media import MediaPlayer, MediaRecorder, MediaRelay, MediaSt
 pcs = set()
 relay = MediaRelay()
 ros = roslibpy.Ros(host='localhost', port=9090)
+
+class DepthStreamTrack(VideoStreamTrack):
+    def __init__(self, fps = 30, height = 640, width = 480):
+        super().__init__()  # don't forget this!
+        self.counter = 0
+        self.fps = fps
+        self.width = width
+        self.height = height
+        self.pipeline = self.initialize_depth_camera_pipeline()
+
+
+    def initialize_depth_camera_pipeline(self):
+        # Configure depth and color streams
+        self.pipeline = rs.pipeline()
+        config = rs.config()
+
+        config.enable_stream(rs.stream.depth, self.height, self.width, rs.format.z16, self.fps)
+    
+
+        # Start streaming
+        self.pipeline.start(config)
+        #print(self.pipeline)
+        return self.pipeline
+
+    def process_depth_image(self):
+        #await asyncio.sleep(5)
+        frames = self.pipeline.wait_for_frames()
+        depth_frame = frames.get_depth_frame()
+        depth_image = np.asanyarray(depth_frame.get_data())
+        img = np.zeros((self.width, self.height, 3), dtype = np.uint8)
+        img[:, :, 0] = depth_image / 256
+        img[:, :, 1] = depth_image % 256
+        return VideoFrame.from_ndarray(img)
+
+
+    async def recv(self):
+        pts, time_base = await self.next_timestamp()
+
+        frame = self.process_depth_image()
+        frame.pts = pts
+        frame.time_base = time_base
+        self.counter += 1
+        return frame
+
 
 class MediaRosSend:
     """
@@ -198,21 +245,13 @@ async def publish(plugin, player):
     """
     Send video to the room.
     """
+
     pc = RTCPeerConnection()
     pcs.add(pc)
 
     # configure media
-    media = {"audio": False, "video": True}
-    if player and player.audio:
-        pc.addTrack(player.audio)
-        media["audio"] = True
-
-    if player and player.video:
-        pc.addTrack(VideoTimestampTrack(
-                    player.video, position = (20, 80), color = (0, 255, 0)
-                )) 
-    else:
-        pc.addTrack(VideoStreamTrack())
+    media = {"audio": False, "video": True}   
+    pc.addTrack(DepthStreamTrack()) 
 
     # send offer
     await pc.setLocalDescription(await pc.createOffer())
@@ -299,7 +338,8 @@ async def run(player, recorder, room, session):
         print("id: %(id)s, display: %(display)s" % publisher)
 
     # send video
-    await publish(plugin=plugin, player=player)
+    if(recorder is None):
+        await publish(plugin=plugin, player=player)
 
     # receive video
     if recorder is not None and publishers:
@@ -321,7 +361,6 @@ if __name__ == "__main__":
         default=1234,
         help="The video room ID to join (default: 1234).",
     ),
-    parser.add_argument("--play-from", help="Read the media from a file and sent it."),
     parser.add_argument("--record-to", help="Write received media to a file."),
     parser.add_argument(
         "--play-without-decoding",
@@ -334,7 +373,7 @@ if __name__ == "__main__":
     parser.add_argument("--format", "-f", default="rtsp")
     parser.add_argument("--verbose", "-v", action="count")
     args = parser.parse_args()
-
+    args.play_from = None
     if args.verbose:
         logging.basicConfig(level=logging.DEBUG)
 
