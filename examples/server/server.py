@@ -83,8 +83,8 @@ class MediaRosSend:
                 membuf = BytesIO()
                 img.save(membuf, format="jpeg") 
                 
-                #img_base64_str = base64.b64encode(membuf.getvalue()).decode('ascii')
-                #self.publisher.publish(dict(format = 'jpeg', data = img_base64_str))
+                img_base64_str = base64.b64encode(membuf.getvalue()).decode('ascii')
+                self.publisher.publish(dict(format = 'jpeg', data = img_base64_str))
                 #await asyncio.sleep(0.01)
             except MediaStreamError as e:
                 print("error:", e)
