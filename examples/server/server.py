@@ -75,15 +75,22 @@ class MediaRosSend:
             try:
                 frame = await track.recv()
 
+                img_np = frame.to_ndarray(format="bgr24")
+                cv2.imshow(track.id, img_np)
+                cv2.waitKey(1)
+
                 img = frame.to_image()
                 membuf = BytesIO()
                 img.save(membuf, format="jpeg") 
                 
-                img_base64_str = base64.b64encode(membuf.getvalue()).decode('ascii')
-                self.publisher.publish(dict(format = 'jpeg', data = img_base64_str))
+                #img_base64_str = base64.b64encode(membuf.getvalue()).decode('ascii')
+                #self.publisher.publish(dict(format = 'jpeg', data = img_base64_str))
                 #await asyncio.sleep(0.01)
-            except MediaStreamError:
+            except MediaStreamError as e:
+                print("error:", e)
                 return
+            except Exception as e:
+                print("error:", e)
 
 
 class VideoTransformTrack(MediaStreamTrack):
